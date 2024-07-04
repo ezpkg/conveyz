@@ -3,13 +3,17 @@ module ezpkg.io/conveyz
 go 1.21
 
 require (
-	ezpkg.io/colorz v0.0.9
-	ezpkg.io/fmtz v0.0.9
-	ezpkg.io/stacktracez v0.0.9
-	ezpkg.io/stringz v0.0.9
+	ezpkg.io/colorz v0.1.0
+	ezpkg.io/fmtz v0.1.0
+	ezpkg.io/stacktracez v0.1.0
+	ezpkg.io/stringz v0.1.0
+	ezpkg.io/typez v0.1.0
+	ezpkg.io/unsafez v0.1.0
 	github.com/onsi/gomega v1.33.1
 	github.com/smartystreets/goconvey v1.8.1
 )
+
+
 
 
 

@@ -1,7 +1,12 @@
-// Package conveyz extends the package github.com/smartystreets/goconvey/convey with additional functionality and make it work with github.com/onsi/gomega.
+// Package conveyz extends the package [convey] with additional functionality and make it work with [gomega].
+//
+// [convey]: https://pkg.go.dev/github.com/smartystreets/goconvey/convey
+// [gomega]: https://pkg.go.dev/github.com/onsi/gomega
 package conveyz // import "ezpkg.io/conveyz"
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/onsi/gomega"
@@ -15,25 +20,66 @@ import (
 )
 
 func Convey(items ...any) {
-	setupGomega(items...)
-	convey.Convey(items...)
+	defer setupGomega(items...)()
+	if !pkgHasFocusConvey() {
+		convey.Convey(items...)
+		return
+	}
+	switch shouldConvert() {
+	case 1:
+		convey.FocusConvey(items...)
+	case -1:
+		convey.SkipConvey(items...)
+	default:
+		convey.Convey(items...)
+	}
 }
+
+// SConvey (alias of SkipConvey) skips the current scope and all child scopes. It also makes the test fail.
 func SConvey(items ...any) {
+	skippedTests = true
+	patchMessage(items, "SKIP", colorz.Magenta)
 	convey.SkipConvey(items...)
 }
+
+// SkipConvey skips the current scope and all child scopes. It also makes the test fail.
 func SkipConvey(items ...any) {
+	skippedTests = true
+	patchMessage(items, "SKIP", colorz.Magenta)
 	convey.SkipConvey(items...)
 }
+
+// FConvey (alias of FocusConvey) runs the current scope and all child scopes, but skips all other scopes. It also makes the test fail.
 func FConvey(items ...any) {
+	defer setupGomega(items...)()
+	skippedTests = true
+	patchMessage(items, "FOCUS", colorz.Magenta)
 	convey.FocusConvey(items...)
 }
+
+// FocusConvey runs the current scope and all child scopes, but skips all other scopes. It also makes the test fail.
 func FocusConvey(items ...any) {
+	defer setupGomega(items...)()
+	skippedTests = true
+	patchMessage(items, "FOCUS", colorz.Magenta)
 	convey.FocusConvey(items...)
 }
+
+// SkipConveyAsTODO is similar to SkipConvey but does not make the test fail.
+func SkipConveyAsTODO(items ...any) {
+	defer setupGomega(items...)()
+	patchMessage(items, "TODO", colorz.Magenta)
+	convey.SkipConvey(items...)
+}
+
+// Reset registers a cleanup function to run after each Convey() in the same scope.
 func Reset(action func()) {
 	convey.Reset(action)
 }
 
+// GomegaExpect is an adapter to make gomega work with goconvey.
+//
+// Usage: Ω := GomegaExpect
 func GomegaExpect(actual any, extra ...any) gomega.Assertion {
 	assertion := gomega.Expect(actual, extra...)
 	return gomegaAssertion{actual: actual, assertion: assertion}
@@ -58,12 +104,12 @@ func (a gomegaAssertion) To(matcher gomegatypes.GomegaMatcher, optionalDescripti
 		success, err := matcher.Match(a.actual)
 		if err != nil {
 			stack := stacktracez.StackTraceSkip(4)
-			return formatMsg(optionalDescription, colorz.Red.Wrap("UNEXPECTED: %v\n\n%v"), err, stack)
+			return formatMsg(optionalDescription, stack, "%vUNEXPECTED: %v%v", colorz.Red, err, colorz.Yellow)
 		}
 		if !success {
 			stack := stacktracez.StackTraceSkip(4)
 			msg := matcher.FailureMessage(a.actual)
-			return formatMsg(optionalDescription, "%s\n\n%v\n", msg, stack)
+			return formatMsg(optionalDescription, stack, "%s", msg)
 		}
 		return ""
 	})
@@ -75,12 +121,12 @@ func (a gomegaAssertion) ToNot(matcher gomegatypes.GomegaMatcher, optionalDescri
 		success, err := matcher.Match(a.actual)
 		if err != nil {
 			stack := stacktracez.StackTraceSkip(4)
-			return formatMsg(optionalDescription, "UNEXPECTED: %v\n\n%v", err, stack)
+			return formatMsg(optionalDescription, stack, "%vUNEXPECTED: %v%v", colorz.Red, err, colorz.Yellow)
 		}
 		if success {
 			stack := stacktracez.StackTraceSkip(4)
 			msg := matcher.NegatedFailureMessage(a.actual)
-			return formatMsg(optionalDescription, "%s\n\n%v", msg, stack)
+			return formatMsg(optionalDescription, stack, "%s", msg)
 		}
 		return ""
 	})
@@ -107,20 +153,54 @@ func (a gomegaAssertion) Error() gomegatypes.Assertion {
 	}
 }
 
-func setupGomega(items ...any) {
-	if len(items) >= 2 {
-		testT, ok := items[1].(*testing.T)
-		if ok {
-			gomega.Default = gomega.NewWithT(testT)
+func setupGomega(items ...any) func() {
+	if len(items) < 2 {
+		return func() {}
+	}
+	testT, ok := items[1].(*testing.T)
+	if !ok {
+		return func() {}
+	}
+	// this is top-level convey, init gomega
+	gomega.Default = gomega.NewWithT(testT)
+	return func() {
+		if skippedTests {
+			fmt.Println(colorz.Magenta.Wrap("--- NOTE: There are skipped/focused tests. Make sure to include them or mark as TODO."))
+			testT.Fail()
 		}
 	}
 }
 
-func formatMsg(optionalDescription []any, format string, args ...any) string {
+func formatMsg(optionalDescription []any, stack *stacktracez.Frames, format string, args ...any) string {
 	b := &stringz.Builder{}
 	if len(optionalDescription) > 0 {
 		b.Println(fmtz.FormatMsgArgsX(optionalDescription))
 	}
 	b.Printf(format, args...)
+	b.Printf("\n\n")
+	for _, frame := range stack.GetFrames() {
+		pkg, _, _, _ := frame.Components()
+		if pkg == "ezpkg.io/conveyz" ||
+			strings.HasPrefix(pkg, "github.com/jtolds/gls") ||
+			strings.HasPrefix(pkg, "github.com/smartystreets/goconvey") {
+			continue
+		}
+		b.Printf("%s\n", frame)
+	}
 	return b.String()
+}
+
+func patchMessageX(items []any, fn func(s string) string) {
+	if len(items) == 0 {
+		return
+	}
+	if msg, ok := items[0].(string); ok {
+		items[0] = fn(msg)
+	}
+}
+
+func patchMessage(items []any, prefix string, color colorz.Color) {
+	patchMessageX(items, func(s string) string {
+		return fmt.Sprintf("%s%s:%s %s", color, prefix, colorz.Reset, s)
+	})
 }
