@@ -3,12 +3,12 @@ module ezpkg.io/conveyz
 go 1.21
 
 require (
-	ezpkg.io/colorz v0.1.1
-	ezpkg.io/fmtz v0.1.1
-	ezpkg.io/stacktracez v0.1.1
-	ezpkg.io/stringz v0.1.1
-	ezpkg.io/typez v0.1.1
-	ezpkg.io/unsafez v0.1.1
+	ezpkg.io/colorz v0.1.2
+	ezpkg.io/fmtz v0.1.2
+	ezpkg.io/stacktracez v0.1.2
+	ezpkg.io/stringz v0.1.2
+	ezpkg.io/typez v0.1.2
+	ezpkg.io/unsafez v0.1.2
 )
 
 require (
