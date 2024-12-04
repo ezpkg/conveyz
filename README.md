@@ -15,7 +15,7 @@ Package [conveyz](https://pkg.go.dev/ezpkg.io/conveyz) extends the package [conv
 ## Installation
 
 ```sh
-go get -u ezpkg.io/conveyz@v0.1.2
+go get -u ezpkg.io/conveyz@v0.2.0
 ```
 
 ## Features
@@ -45,12 +45,10 @@ import (
 	"fmt"
 	"testing"
 
-	. "github.com/onsi/gomega"
 	. "ezpkg.io/conveyz"
 )
 
 func Test(t *testing.T) {
-	Ω := GomegaExpect // 👈 make Ω as alias for GomegaExpect
 	Convey("Start", t, func() {
 		s := "[0]"
 		defer func() { fmt.Printf("\n%s\n", s) }()
